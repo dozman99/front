@@ -1,0 +1,10 @@
+Place your SAML SP private key and certificate files here.
+Files required:
+  sp_private.pem   SP private key (never commit)
+  sp_cert.pem      SP certificate (can commit, public)
+
+These paths are configured in .env:
+  SAML_SP_PRIVATE_KEY_FILE=./saml/sp_private.pem
+  SAML_SP_CERT_FILE=./saml/sp_cert.pem
+
+Both files are in .gitignore.

@@ -1,0 +1,12 @@
+import { useQuery } from '@tanstack/react-query'
+import { getMe } from '../api/auth'
+
+// Restores session on app load via GET /auth/me.
+export function useMe() {
+  return useQuery({
+    queryKey: ['me'],
+    queryFn: getMe,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+}
