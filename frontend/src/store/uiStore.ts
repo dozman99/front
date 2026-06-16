@@ -12,12 +12,6 @@ interface UiState {
   toasts: Toast[]
   pushToast: (type: ToastType, message: string) => void
   dismissToast: (id: number) => void
-
-  // Drawer state for the Ban List page.
-  drawerOpen: boolean
-  activeRowId: string | null
-  openDrawer: (rowId: string) => void
-  closeDrawer: () => void
 }
 
 let toastSeq = 1
@@ -34,11 +28,6 @@ export const useUiStore = create<UiState>((set) => ({
   },
   dismissToast: (id) =>
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-
-  drawerOpen: false,
-  activeRowId: null,
-  openDrawer: (rowId) => set({ drawerOpen: true, activeRowId: rowId }),
-  closeDrawer: () => set({ drawerOpen: false, activeRowId: null }),
 }))
 
 // Convenience hook for firing toasts.

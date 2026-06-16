@@ -21,7 +21,6 @@ from app.models import (
     throttle_config,
     ad_groups,
     auto_ban_rules,
-    usage_summary,
 )
 
 config = context.config

@@ -17,15 +17,3 @@ export async function listAudit(
   return data
 }
 
-// Returns a CSV blob for download.
-export async function exportAudit(q: {
-  date_from?: string
-  date_to?: string
-  action?: string
-}): Promise<Blob> {
-  const { data } = await api.get('/audit/export', {
-    params: q,
-    responseType: 'blob',
-  })
-  return data
-}
