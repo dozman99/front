@@ -1,5 +1,19 @@
 import pytest
 from datetime import datetime, timedelta
+from app.models.banned_users import BannedUser
+from app.models.banned_apps import BannedApp
+
+
+def _phone(db, number="+15550001234", **kwargs):
+    r = BannedUser(phone_number=number, **kwargs)
+    db.add(r)
+    db.commit()
+
+
+def _email(db, address="app@corp.com", **kwargs):
+    r = BannedApp(email_address=address, **kwargs)
+    db.add(r)
+    db.commit()
 
 
 def test_check_phone_not_found(client_unauth):
@@ -8,14 +22,14 @@ def test_check_phone_not_found(client_unauth):
     assert r.json()["status"] == "not_found"
 
 
-def test_check_phone_active(client_admin, client_unauth):
-    client_admin.post("/phones", json={"phone_number": "+15550001234"})
+def test_check_phone_active(client_unauth, db):
+    _phone(db)
     r = client_unauth.get("/check/phone/+15550001234")
     assert r.json()["status"] == "active"
 
 
-def test_check_phone_permanently_banned(client_admin, client_unauth):
-    client_admin.post("/phones", json={"phone_number": "+15550001234"})
+def test_check_phone_permanently_banned(client_admin, client_unauth, db):
+    _phone(db)
     client_admin.post("/phones/+15550001234/ban", json={
         "is_temporary": False,
         "reason": "Spam",
@@ -24,8 +38,8 @@ def test_check_phone_permanently_banned(client_admin, client_unauth):
     assert r.json()["status"] == "permanently_banned"
 
 
-def test_check_phone_temp_banned_returns_expiry(client_admin, client_unauth):
-    client_admin.post("/phones", json={"phone_number": "+15550001234"})
+def test_check_phone_temp_banned_returns_expiry(client_admin, client_unauth, db):
+    _phone(db)
     expiry = (datetime.utcnow() + timedelta(hours=3)).isoformat()
     client_admin.post("/phones/+15550001234/ban", json={
         "is_temporary": True,
@@ -38,28 +52,21 @@ def test_check_phone_temp_banned_returns_expiry(client_admin, client_unauth):
     assert data["expires"] is not None
 
 
-def test_check_phone_opted_out(client_admin, client_unauth):
-    client_admin.post("/phones", json={"phone_number": "+15550001234"})
-    client_admin.patch("/phones/+15550001234", json={"opt_out": True})
+def test_check_phone_opted_out(client_unauth, db):
+    _phone(db, opt_out=True)
     r = client_unauth.get("/check/phone/+15550001234")
     assert r.json()["status"] == "opted_out"
 
 
-def test_check_opted_out_before_ban(client_admin, client_unauth):
+def test_check_opted_out_before_ban(client_unauth, db):
     """Opt-out is checked before ban status."""
-    client_admin.post("/phones", json={"phone_number": "+15550001234"})
-    client_admin.post("/phones/+15550001234/ban", json={
-        "is_temporary": False,
-        "reason": "Banned",
-    })
-    client_admin.patch("/phones/+15550001234", json={"opt_out": True})
+    _phone(db, banned=True, opt_out=True, ban_reason="Banned", banned_by="admin")
     r = client_unauth.get("/check/phone/+15550001234")
-    # opted_out takes precedence over banned
     assert r.json()["status"] == "opted_out"
 
 
-def test_check_never_returns_ban_reason(client_admin, client_unauth):
-    client_admin.post("/phones", json={"phone_number": "+15550001234"})
+def test_check_never_returns_ban_reason(client_admin, client_unauth, db):
+    _phone(db)
     client_admin.post("/phones/+15550001234/ban", json={
         "is_temporary": False,
         "reason": "SENSITIVE REASON — never expose",
@@ -70,7 +77,6 @@ def test_check_never_returns_ban_reason(client_admin, client_unauth):
     assert "reason" not in data
     assert "banned_by" not in data
     assert "date_banned" not in data
-    # Confirm the sensitive data is definitely not anywhere in the response
     assert "SENSITIVE" not in str(data)
 
 
@@ -79,14 +85,14 @@ def test_check_email_not_found(client_unauth):
     assert r.json()["status"] == "not_found"
 
 
-def test_check_email_active(client_admin, client_unauth):
-    client_admin.post("/emails", json={"email_address": "app@corp.com"})
+def test_check_email_active(client_unauth, db):
+    _email(db)
     r = client_unauth.get("/check/email/app@corp.com")
     assert r.json()["status"] == "active"
 
 
-def test_check_email_permanently_banned(client_admin, client_unauth):
-    client_admin.post("/emails", json={"email_address": "app@corp.com"})
+def test_check_email_permanently_banned(client_admin, client_unauth, db):
+    _email(db)
     client_admin.post("/emails/app@corp.com/ban", json={
         "is_temporary": False,
         "reason": "Spam",

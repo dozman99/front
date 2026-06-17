@@ -26,7 +26,3 @@ class EmailListResponse(BaseModel):
     page: int
     limit: int
     results: List[EmailRecord]
-
-
-class EmailCreate(BaseModel):
-    email_address: str

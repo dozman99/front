@@ -31,14 +31,6 @@ class PhoneListResponse(BaseModel):
     results: List[PhoneRecord]
 
 
-class PhoneCreate(BaseModel):
-    phone_number: str
-
-
-class PhoneOptOutUpdate(BaseModel):
-    opt_out: bool
-
-
 class ActivateRequest(BaseModel):
     reason: str
 

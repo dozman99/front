@@ -5,7 +5,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
-from app.api import auth, phones, emails, dashboard, check, audit, groups, messages
+from app.api import auth, phones, emails, dashboard, check, groups, messages
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -37,7 +37,6 @@ app.include_router(phones.router,    prefix="/phones",    tags=["Phones"])
 app.include_router(emails.router,    prefix="/emails",    tags=["Emails"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 app.include_router(check.router,     prefix="/check",     tags=["Public"])
-app.include_router(audit.router,     prefix="/audit",     tags=["Audit"])
 app.include_router(groups.router,    prefix="/groups",    tags=["Groups"])
 app.include_router(messages.router,  prefix="/messages",  tags=["Messages"])
 
