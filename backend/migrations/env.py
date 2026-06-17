@@ -18,7 +18,6 @@ from app.models import (
     banned_apps,
     audit_log,
     message_log,
-    throttle_config,
     ad_groups,
     auto_ban_rules,
 )

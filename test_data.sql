@@ -92,18 +92,7 @@ VALUES
 ON CONFLICT DO NOTHING;
 
 
--- ── 5. Throttle Config ────────────────────────────────────────────────────────
-
-INSERT INTO throttle_config (app_email, cap_per_hour, enabled, updated_by, updated_at)
-VALUES
-  ('sms-service@corp.com',      500,  TRUE,  'admin', NOW() - INTERVAL '5 days'),
-  ('notifications@webapp.corp', 200,  TRUE,  'admin', NOW() - INTERVAL '3 days'),
-  ('alerts@monitoring.corp',    1000, FALSE, 'admin', NOW() - INTERVAL '2 hours'),
-  ('marketing-blast@corp.com',  100,  TRUE,  'admin', NOW() - INTERVAL '8 days')
-ON CONFLICT (app_email) DO NOTHING;
-
-
--- ── 6. Message Log ────────────────────────────────────────────────────────────
+-- ── 5. Message Log ────────────────────────────────────────────────────────────
 
 INSERT INTO message_log (app_email, phone_number, attempted_at, status, block_reason, twilio_response_code)
 VALUES
