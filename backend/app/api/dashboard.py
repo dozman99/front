@@ -50,7 +50,7 @@ def get_stats(user=Depends(require_any), db: Session = Depends(get_db)):
             BannedUser.temp_ban == True,
         ).count(),
         "opt_outs_today":       db.query(AuditLog).filter(
-            AuditLog.action == "OPT_OUT",
+            AuditLog.action == "ACTIVATE",
             AuditLog.performed_at >= today_start,
         ).count(),
     }

@@ -160,8 +160,6 @@ const ACTION_LABEL: Record<string, string> = {
   BAN:           'Banned',
   TEMP_BAN:      'Temp Banned',
   UNBAN:         'Unbanned',
-  OPT_IN:        'Opted In',
-  OPT_OUT:       'Opted Out',
   ADDED:         'Added',
   REMOVED:       'Removed',
   ACTIVATE:      'Activated',
