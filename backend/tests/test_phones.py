@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 def test_list_phones_empty(client_admin):
     r = client_admin.get("/phones")
     assert r.status_code == 200
-    assert r.json() == []
+    data = r.json()
+    assert data["total"] == 0
+    assert data["results"] == []
 
 
 def test_add_phone(client_admin):
@@ -54,9 +56,7 @@ def test_ban_phone_temporary(client_admin):
 
 def test_ban_resets_unban_columns(client_admin, db):
     from app.models.banned_users import BannedUser
-    from datetime import datetime
 
-    # Set up a previously-unbanned record
     record = BannedUser(
         phone_number="+15550001234",
         date_unbanned=datetime.utcnow(),
@@ -77,29 +77,28 @@ def test_ban_resets_unban_columns(client_admin, db):
     assert data["unban_reason"] is None
 
 
-def test_unban_phone(client_admin):
+def test_activate_phone(client_admin):
     client_admin.post("/phones", json={"phone_number": "+15550001234"})
     client_admin.post("/phones/+15550001234/ban", json={
         "is_temporary": False,
         "reason": "Banned",
     })
-    r = client_admin.post("/phones/+15550001234/unban", json={
+    r = client_admin.post("/phones/+15550001234/activate", json={
         "reason": "Issue resolved",
     })
     assert r.status_code == 200
     data = r.json()
     assert data["banned"] == False
     assert data["temp_ban"] == False
-    assert data["unban_reason"] == "Issue resolved"
 
 
-def test_unban_resets_ban_columns(client_admin):
+def test_activate_resets_ban_columns(client_admin):
     client_admin.post("/phones", json={"phone_number": "+15550001234"})
     client_admin.post("/phones/+15550001234/ban", json={
         "is_temporary": False,
         "reason": "Test ban",
     })
-    r = client_admin.post("/phones/+15550001234/unban", json={
+    r = client_admin.post("/phones/+15550001234/activate", json={
         "reason": "Resolved",
     })
     data = r.json()
@@ -129,7 +128,6 @@ def test_ban_reason_min_length(client_admin):
 
 def test_temp_ban_expiry_min_1_hour(client_admin):
     client_admin.post("/phones", json={"phone_number": "+15550001234"})
-    # Set expiry 30 minutes from now — too soon
     expiry = (datetime.utcnow() + timedelta(minutes=30)).isoformat()
     r = client_admin.post("/phones/+15550001234/ban", json={
         "is_temporary": True,
@@ -147,17 +145,16 @@ def test_helpdesk_cannot_ban(client_helpdesk):
     assert r.status_code == 403
 
 
-def test_helpdesk_can_unban(client_admin, client_helpdesk):
+def test_helpdesk_cannot_activate(client_admin, client_helpdesk):
     client_admin.post("/phones", json={"phone_number": "+15550001234"})
     client_admin.post("/phones/+15550001234/ban", json={
         "is_temporary": False,
         "reason": "Admin banned",
     })
-    r = client_helpdesk.post("/phones/+15550001234/unban", json={
-        "reason": "Helpdesk resolved",
+    r = client_helpdesk.post("/phones/+15550001234/activate", json={
+        "reason": "Helpdesk trying to activate",
     })
-    assert r.status_code == 200
-    assert r.json()["banned"] == False
+    assert r.status_code == 403
 
 
 def test_opt_out_toggle(client_admin):
@@ -185,14 +182,14 @@ def test_status_filter(client_admin):
     })
 
     r = client_admin.get("/phones?status=banned")
-    data = r.json()
-    assert len(data) == 1
-    assert data[0]["phone_number"] == "+15550001111"
+    results = r.json()["results"]
+    assert len(results) == 1
+    assert results[0]["phone_number"] == "+15550001111"
 
     r = client_admin.get("/phones?status=active")
-    data = r.json()
-    assert len(data) == 1
-    assert data[0]["phone_number"] == "+15550002222"
+    results = r.json()["results"]
+    assert len(results) == 1
+    assert results[0]["phone_number"] == "+15550002222"
 
 
 def test_search_filter(client_admin):
@@ -200,6 +197,6 @@ def test_search_filter(client_admin):
     client_admin.post("/phones", json={"phone_number": "+15559999999"})
 
     r = client_admin.get("/phones?search=5550001")
-    data = r.json()
-    assert len(data) == 1
-    assert "+15550001111" in data[0]["phone_number"]
+    results = r.json()["results"]
+    assert len(results) == 1
+    assert "+15550001111" in results[0]["phone_number"]

@@ -32,17 +32,6 @@ export interface EmailRecord {
   last_msg_attempt: string | null
 }
 
-export interface AuditRecord {
-  id: number
-  action: string
-  entity_type: string
-  entity_value: string
-  performed_by: string
-  performed_at: string
-  reason: string | null
-  // NOTE: backend field is extra_data, not metadata (reserved in SQLAlchemy)
-  extra_data: Record<string, unknown> | null
-}
 
 export interface MessageRecord {
   app_email: string | null

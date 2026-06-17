@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Index
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, Integer, String, DateTime, Text, Index, JSON
 from app.models.base import Base
 from datetime import datetime
 
@@ -15,7 +14,7 @@ class AuditLog(Base):
     performed_by = Column(String(255), nullable=False)
     performed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     reason       = Column(Text, nullable=True)
-    extra_data   = Column(JSONB, nullable=True)
+    extra_data   = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_portal_log_entity", "entity_value", "performed_at"),

@@ -167,10 +167,6 @@ const ACTION_LABEL: Record<string, string> = {
   ACTIVATE:      'Activated',
   GROUP_ADDED:   'Group Added',
   GROUP_REMOVED: 'Group Removed',
-  RULE_CREATED:  'Rule Created',
-  RULE_UPDATED:  'Rule Updated',
-  RULE_DELETED:  'Rule Deleted',
-  RULE_TOGGLED:  'Rule Toggled',
 }
 
 function formatAction(action: string): string {
