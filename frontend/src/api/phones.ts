@@ -15,16 +15,6 @@ export async function listPhones(
   return data
 }
 
-export async function getPhone(number: string): Promise<PhoneRecord> {
-  const { data } = await api.get(`/phones/${encodeURIComponent(number)}`)
-  return data
-}
-
-export async function createPhone(phone_number: string): Promise<PhoneRecord> {
-  const { data } = await api.post('/phones', { phone_number })
-  return data
-}
-
 export interface BanBody {
   is_temporary: boolean
   expiry_date: string | null
@@ -42,16 +32,6 @@ export async function banPhone(
   return data
 }
 
-export async function setOptOut(
-  number: string,
-  opt_out: boolean
-): Promise<PhoneRecord> {
-  const { data } = await api.patch(`/phones/${encodeURIComponent(number)}`, {
-    opt_out,
-  })
-  return data
-}
-
 export async function activatePhone(
   number: string,
   reason: string
@@ -63,7 +43,3 @@ export async function activatePhone(
   return data
 }
 
-export async function deletePhone(number: string) {
-  const { data } = await api.delete(`/phones/${encodeURIComponent(number)}`)
-  return data
-}

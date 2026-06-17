@@ -16,16 +16,6 @@ export async function listEmails(
   return data
 }
 
-export async function getEmail(address: string): Promise<EmailRecord> {
-  const { data } = await api.get(`/emails/${encodeURIComponent(address)}`)
-  return data
-}
-
-export async function createEmail(email_address: string): Promise<EmailRecord> {
-  const { data } = await api.post('/emails', { email_address })
-  return data
-}
-
 export async function banEmail(
   address: string,
   body: BanBody
@@ -48,7 +38,3 @@ export async function unbanEmail(
   return data
 }
 
-export async function deleteEmail(address: string) {
-  const { data } = await api.delete(`/emails/${encodeURIComponent(address)}`)
-  return data
-}

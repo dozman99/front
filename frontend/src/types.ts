@@ -54,14 +54,6 @@ export interface MessageRecord {
   twilio_response_code: string | null
 }
 
-export interface ThrottleRecord {
-  app_email: string
-  cap_per_hour: number
-  enabled: boolean
-  updated_at: string | null
-  updated_by: string | null
-}
-
 export interface AdGroupRecord {
   group_name: string
   role: 'admin' | 'helpdesk'

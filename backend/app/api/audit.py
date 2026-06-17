@@ -1,7 +1,4 @@
-import csv
-import io
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
@@ -64,34 +61,3 @@ def list_audit(
     }
 
 
-@router.get("/export")
-def export_audit(
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    action: Optional[str] = None,
-    user=Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Download audit log as CSV file."""
-    q = _apply_filters(
-        db.query(AuditLog).order_by(AuditLog.performed_at.desc()),
-        action, from_date, to_date,
-    )
-
-    entries = q.all()
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["ID", "Action", "Entity Type", "Entity", "Performed By", "Date", "Reason"])
-    for e in entries:
-        writer.writerow([
-            e.id, e.action, e.entity_type, e.entity_value,
-            e.performed_by, e.performed_at.isoformat(), e.reason or "",
-        ])
-
-    output.seek(0)
-    return StreamingResponse(
-        io.BytesIO(output.getvalue().encode()),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=sas-relay-audit.csv"},
-    )

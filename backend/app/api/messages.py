@@ -23,11 +23,11 @@ def get_phone_messages(
 
     return [
         {
-            "time": m.attempted_at.isoformat(),
+            "attempted_at": m.attempted_at.isoformat() if m.attempted_at else None,
             "status": m.status,
-            "source": m.app_email,
+            "app_email": m.app_email,
             "block_reason": m.block_reason,
-            "twilio_code": m.twilio_response_code,
+            "twilio_response_code": m.twilio_response_code,
         }
         for m in messages
     ]
@@ -49,11 +49,11 @@ def get_email_messages(
 
     return [
         {
-            "time": m.attempted_at.isoformat(),
+            "attempted_at": m.attempted_at.isoformat() if m.attempted_at else None,
             "status": m.status,
-            "recipient": m.phone_number,
+            "phone_number": m.phone_number,
             "block_reason": m.block_reason,
-            "twilio_code": m.twilio_response_code,
+            "twilio_response_code": m.twilio_response_code,
         }
         for m in messages
     ]
