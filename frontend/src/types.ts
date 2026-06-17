@@ -45,7 +45,6 @@ export interface AuditRecord {
 }
 
 export interface MessageRecord {
-  id: number
   app_email: string | null
   phone_number: string | null
   attempted_at: string | null
@@ -59,16 +58,6 @@ export interface AdGroupRecord {
   role: 'admin' | 'helpdesk'
   added_by: string | null
   added_at: string | null
-}
-
-export interface RuleRecord {
-  id: number
-  title: string
-  condition_text: string
-  action_text: string
-  enabled: boolean
-  created_by: string | null
-  created_at: string | null
 }
 
 export interface IncidentItem {

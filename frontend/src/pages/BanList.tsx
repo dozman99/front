@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
-import { Plus, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import TopBar from '../components/layout/TopBar'
 import RoleGuard from '../components/layout/RoleGuard'
 import Badge from '../components/shared/Badge'
@@ -82,7 +82,6 @@ const PHONE_FILTERS = ['All', 'Banned', 'Temp', 'Active', 'Opt-Out'] as const
 type PhoneFilter = (typeof PHONE_FILTERS)[number]
 
 function PhonesTab({ initialFilter, initialSearch }: { initialFilter?: PhoneFilter; initialSearch?: string }) {
-  const isAdmin = useIsAdmin()
   const [filter, setFilter] = useState<PhoneFilter>(initialFilter ?? 'All')
   const [search, setSearch] = useState(initialSearch ?? '')
   const [active, setActive] = useState<PhoneRecord | null>(null)
@@ -110,7 +109,6 @@ function PhonesTab({ initialFilter, initialSearch }: { initialFilter?: PhoneFilt
         search={search}
         onSearch={setSearch}
         placeholder="Search phone numbers…"
-        canAdd={isAdmin}
       />
 
       {rows.length === 0 ? (
@@ -180,7 +178,6 @@ const EMAIL_FILTERS = ['All', 'Banned', 'Temp', 'Active'] as const
 type EmailFilter = (typeof EMAIL_FILTERS)[number]
 
 function EmailsTab({ initialFilter, initialSearch }: { initialFilter?: EmailFilter; initialSearch?: string }) {
-  const isAdmin = useIsAdmin()
   const [filter, setFilter] = useState<EmailFilter>(initialFilter ?? 'All')
   const [search, setSearch] = useState(initialSearch ?? '')
   const [active, setActive] = useState<EmailRecord | null>(null)
@@ -206,7 +203,6 @@ function EmailsTab({ initialFilter, initialSearch }: { initialFilter?: EmailFilt
         search={search}
         onSearch={setSearch}
         placeholder="Search email addresses…"
-        canAdd={isAdmin}
       />
 
       {rows.length === 0 ? (
@@ -270,7 +266,6 @@ function Controls({
   search,
   onSearch,
   placeholder,
-  canAdd,
 }: {
   filters: readonly string[]
   active: string
@@ -278,7 +273,6 @@ function Controls({
   search: string
   onSearch: (s: string) => void
   placeholder: string
-  canAdd: boolean
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -310,11 +304,6 @@ function Controls({
           className="mono w-64 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] py-1.5 pl-8 pr-3 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
         />
       </div>
-      {canAdd && (
-        <button className="flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-white hover:brightness-110">
-          <Plus size={15} /> Add Ban
-        </button>
-      )}
     </div>
   )
 }
@@ -658,9 +647,8 @@ function ActionBtn({
 }
 
 const MSG_STATUS_COLOR: Record<string, string> = {
-  Blocked: 'var(--color-critical)',
+  Blocked:   'var(--color-critical)',
   Delivered: 'var(--color-safe)',
-  Throttled: 'var(--color-warning)',
 }
 
 function MessageTable({

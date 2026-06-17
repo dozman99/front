@@ -42,7 +42,7 @@ def list_audit(
     items = q.offset(offset).limit(limit).all()
 
     return {
-        "items": [
+        "results": [
             {
                 "id": e.id,
                 "action": e.action,
@@ -57,7 +57,6 @@ def list_audit(
         "total": total,
         "page": page,
         "limit": limit,
-        "pages": (total + limit - 1) // limit,
     }
 
 

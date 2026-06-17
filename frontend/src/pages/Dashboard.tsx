@@ -171,7 +171,6 @@ const ACTION_LABEL: Record<string, string> = {
   RULE_UPDATED:  'Rule Updated',
   RULE_DELETED:  'Rule Deleted',
   RULE_TOGGLED:  'Rule Toggled',
-  CAP_UPDATED:   'Cap Updated',
 }
 
 function formatAction(action: string): string {
