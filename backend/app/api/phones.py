@@ -4,9 +4,9 @@ from typing import Optional
 from app.core.database import get_db
 from app.core.deps import require_admin, require_any
 from app.models.banned_users import BannedUser
-from app.schemas.ban_schemas import BanRequest, UnbanRequest
+from app.schemas.ban_schemas import BanRequest
 from app.schemas.phone_schemas import PhoneRecord, PhoneListResponse, PhoneCreate, PhoneOptOutUpdate, ActivateRequest
-from app.services import ban_service, unban_service, audit_service
+from app.services import ban_service, audit_service
 
 router = APIRouter()
 
@@ -93,20 +93,6 @@ def ban_phone(
     """
     return ban_service.ban_phone(db, number, data, user)
 
-
-@router.post("/{number}/unban", response_model=PhoneRecord)
-def unban_phone(
-    number: str,
-    data: UnbanRequest,
-    user=Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Unban a phone number.
-    Helpdesk and Admin.
-    Resets all ban columns to None.
-    """
-    return unban_service.unban_phone(db, number, data, user)
 
 
 @router.post("/{number}/activate", response_model=PhoneRecord)

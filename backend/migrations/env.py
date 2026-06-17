@@ -19,7 +19,6 @@ from app.models import (
     audit_log,
     message_log,
     ad_groups,
-    auto_ban_rules,
 )
 
 config = context.config
