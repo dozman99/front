@@ -74,7 +74,6 @@ export interface DashboardStats {
   banned_phones_today: number
   banned_apps_today: number
   temp_bans_today: number
-  opt_outs_today: number
 }
 
 export interface CheckResponse {

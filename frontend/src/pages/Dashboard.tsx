@@ -49,7 +49,7 @@ function StatsRow() {
       />
       <StatCard
         color="var(--color-accent)" label="Opt-Outs" icon={UserMinus}
-        value={s?.opt_outs ?? 0} today={s?.opt_outs_today}
+        value={s?.opt_outs ?? 0}
         to={{ tab: 'phones', status: 'optout' }}
       />
     </div>
