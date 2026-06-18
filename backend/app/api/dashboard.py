@@ -1,18 +1,20 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
+from typing import List
 from app.core.database import get_db
 from app.core.deps import require_any
 from app.models.banned_users import BannedUser
 from app.models.banned_apps import BannedApp
 from app.models.audit_log import AuditLog
+from app.schemas.dashboard_schemas import DashboardStats, IncidentItem, ActivityItem
 
 router = APIRouter()
 
 BAN_SPIKE_THRESHOLD = 5   # incidents if >= this many bans in the last hour
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=DashboardStats)
 def get_stats(user=Depends(require_any), db: Session = Depends(get_db)):
     now         = datetime.utcnow()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -52,7 +54,7 @@ def get_stats(user=Depends(require_any), db: Session = Depends(get_db)):
     }
 
 
-@router.get("/incidents")
+@router.get("/incidents", response_model=List[IncidentItem])
 def get_incidents(user=Depends(require_any), db: Session = Depends(get_db)):
     incidents = []
     now   = datetime.utcnow()
@@ -114,7 +116,7 @@ def get_incidents(user=Depends(require_any), db: Session = Depends(get_db)):
     return incidents
 
 
-@router.get("/activity")
+@router.get("/activity", response_model=List[ActivityItem])
 def get_activity(
     hours: int | None = None,
     user=Depends(require_any),

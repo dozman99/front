@@ -1,20 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from typing import List
 from app.core.database import get_db
 from app.core.deps import require_admin
 from app.models.ad_groups import AdGroupRole
 from app.services import audit_service, ad_service
+from app.schemas.group_schemas import GroupCreate, GroupRecord, SyncResult, MessageResponse
 
 router = APIRouter()
 
 
-class GroupCreate(BaseModel):
-    group_name: str
-    role: str   # admin | helpdesk
-
-
-@router.get("")
+@router.get("", response_model=List[GroupRecord])
 def list_groups(user=Depends(require_admin), db: Session = Depends(get_db)):
     groups = db.query(AdGroupRole).all()
     return [
@@ -28,7 +24,7 @@ def list_groups(user=Depends(require_admin), db: Session = Depends(get_db)):
     ]
 
 
-@router.post("")
+@router.post("", response_model=GroupRecord)
 def add_group(
     data: GroupCreate,
     user=Depends(require_admin),
@@ -54,10 +50,15 @@ def add_group(
         entity_value=data.group_name, performed_by=user.username,
         extra_data={"role": data.role},
     )
-    return {"group_name": record.group_name, "role": record.role}
+    return {
+        "group_name": record.group_name,
+        "role": record.role,
+        "added_by": record.added_by,
+        "added_at": record.added_at.isoformat() if record.added_at else None,
+    }
 
 
-@router.delete("/{group_name}")
+@router.delete("/{group_name}", response_model=MessageResponse)
 def remove_group(
     group_name: str,
     user=Depends(require_admin),
@@ -77,7 +78,7 @@ def remove_group(
     return {"message": f"{group_name} removed"}
 
 
-@router.post("/sync")
+@router.post("/sync", response_model=SyncResult)
 def sync_groups(user=Depends(require_admin), db: Session = Depends(get_db)):
     try:
         result = ad_service.sync_groups(db)
