@@ -149,6 +149,46 @@ curl -X POST "http://localhost:8000/auth/dev-login?username=dev-helpdesk&role=he
 
 ---
 
+## App-created database tables
+
+The portal creates three tables via `alembic upgrade head`. These are separate from your existing SMS gateway tables (`banned_users_sms_gateway`, `banned_apps_sms_gateway`).
+
+### `sms_gateway_portal_log` — audit trail of portal actions
+
+| Column | Necessary? |
+|---|---|
+| `id` | Yes — primary key |
+| `action` | Yes — `BAN`, `UNBAN`, `ACTIVATE`, `TEMP_BAN`, `GROUP_ADDED`, `GROUP_REMOVED` |
+| `entity_type` | Yes — `phone` or `app` |
+| `entity_value` | Yes — the phone number or email address |
+| `performed_by` | Yes — username of who performed the action |
+| `performed_at` | Yes — UTC timestamp |
+| `reason` | Yes — shown in the Dashboard activity feed |
+| `extra_data` | No — written once (group role on `GROUP_ADDED`) but never read back by any endpoint. Can be ignored. |
+
+### `ad_group_roles` — AD group → portal role mappings
+
+| Column | Necessary? |
+|---|---|
+| `id` | Yes — primary key |
+| `group_name` | Yes — AD group distinguished name |
+| `role` | Yes — `admin` or `helpdesk` |
+| `added_by` | Yes — audit trail of who added the mapping |
+| `added_at` | Yes — audit trail of when it was added |
+
+### `message_log` — message attempt history
+
+| Column | Necessary? |
+|---|---|
+| `id` | Yes — primary key |
+| `app_email` | Yes — sending application identity |
+| `phone_number` | Yes — recipient in E.164 format |
+| `attempted_at` | Yes — UTC timestamp of the attempt |
+| `status` | Yes — `Delivered`, `Blocked`, or `Throttled` |
+| `block_reason` | Yes — reason when blocked (e.g. `phone_banned`, `opt_out`) |
+
+---
+
 ## SMS Gateway integration — message_log
 
 The portal displays a **Last 20 Messages** tab inside every phone/email drawer in the Ban List. This tab reads from the `message_log` table, which the portal creates but never writes to. Your SMS gateway is responsible for inserting a row here every time it attempts to send a message.
