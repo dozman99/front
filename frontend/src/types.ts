@@ -63,6 +63,7 @@ export interface ActivityItem {
   entity_type: string
   actor: string
   performed_at: string
+  reason: string | null
 }
 
 export interface DashboardStats {

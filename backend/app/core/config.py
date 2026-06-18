@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     SESSION_EXPIRE_HOURS: int = 8
     RATE_LIMIT_CHECK: str = "100/hour"
     ENVIRONMENT: str = "development"
-    LOG_LEVEL: str = "INFO"
 
     class Config:
         env_file = ".env"
