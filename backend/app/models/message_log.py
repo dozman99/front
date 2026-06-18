@@ -13,7 +13,6 @@ class MessageLog(Base):
     attempted_at         = Column(DateTime, default=datetime.utcnow, nullable=False)
     status               = Column(String(30), nullable=True)
     block_reason         = Column(String(50), nullable=True)
-    twilio_response_code = Column(String(10), nullable=True)
 
     __table_args__ = (
         Index("idx_msg_log_phone", "phone_number", "attempted_at"),

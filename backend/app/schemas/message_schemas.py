@@ -8,4 +8,3 @@ class MessageRecord(BaseModel):
     app_email: Optional[str] = None
     phone_number: Optional[str] = None
     block_reason: Optional[str] = None
-    twilio_response_code: Optional[str] = None

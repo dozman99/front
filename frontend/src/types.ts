@@ -39,7 +39,6 @@ export interface MessageRecord {
   attempted_at: string | null
   status: string | null
   block_reason: string | null
-  twilio_response_code: string | null
 }
 
 export interface AdGroupRecord {

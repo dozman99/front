@@ -94,18 +94,18 @@ ON CONFLICT DO NOTHING;
 
 -- ── 5. Message Log ────────────────────────────────────────────────────────────
 
-INSERT INTO message_log (app_email, phone_number, attempted_at, status, block_reason, twilio_response_code)
+INSERT INTO message_log (app_email, phone_number, attempted_at, status, block_reason)
 VALUES
-  ('sms-service@corp.com',      '+12025550107', NOW() - INTERVAL '1 hour',    'Delivered', NULL,            '200'),
-  ('sms-service@corp.com',      '+12025550108', NOW() - INTERVAL '2 hours',   'Delivered', NULL,            '200'),
-  ('sms-service@corp.com',      '+12025550101', NOW() - INTERVAL '3 hours',   'Blocked',   'phone_banned',  NULL),
-  ('sms-service@corp.com',      '+12025550101', NOW() - INTERVAL '4 hours',   'Blocked',   'phone_banned',  NULL),
-  ('notifications@webapp.corp', '+12025550109', NOW() - INTERVAL '5 hours',   'Blocked',   'opt_out',       NULL),
-  ('alerts@monitoring.corp',    '+12025550107', NOW() - INTERVAL '1 hour',    'Throttled', 'cap_exceeded',  NULL),
-  ('alerts@monitoring.corp',    '+12025550107', NOW() - INTERVAL '70 mins',   'Throttled', 'cap_exceeded',  NULL),
-  ('marketing-blast@corp.com',  '+12025550102', NOW() - INTERVAL '3 days',    'Blocked',   'email_banned',  NULL),
-  ('sms-service@corp.com',      '+12025550199', NOW() - INTERVAL '20 mins',   'Blocked',   'phone_banned',  NULL),
-  ('sms-service@corp.com',      '+12025550104', NOW() - INTERVAL '90 mins',   'Blocked',   'temp_banned',   NULL);
+  ('sms-service@corp.com',      '+12025550107', NOW() - INTERVAL '1 hour',    'Delivered', NULL),
+  ('sms-service@corp.com',      '+12025550108', NOW() - INTERVAL '2 hours',   'Delivered', NULL),
+  ('sms-service@corp.com',      '+12025550101', NOW() - INTERVAL '3 hours',   'Blocked',   'phone_banned'),
+  ('sms-service@corp.com',      '+12025550101', NOW() - INTERVAL '4 hours',   'Blocked',   'phone_banned'),
+  ('notifications@webapp.corp', '+12025550109', NOW() - INTERVAL '5 hours',   'Blocked',   'opt_out'),
+  ('alerts@monitoring.corp',    '+12025550107', NOW() - INTERVAL '1 hour',    'Throttled', 'cap_exceeded'),
+  ('alerts@monitoring.corp',    '+12025550107', NOW() - INTERVAL '70 mins',   'Throttled', 'cap_exceeded'),
+  ('marketing-blast@corp.com',  '+12025550102', NOW() - INTERVAL '3 days',    'Blocked',   'email_banned'),
+  ('sms-service@corp.com',      '+12025550199', NOW() - INTERVAL '20 mins',   'Blocked',   'phone_banned'),
+  ('sms-service@corp.com',      '+12025550104', NOW() - INTERVAL '90 mins',   'Blocked',   'temp_banned');
 
 
 -- ── 7. Audit Log ─────────────────────────────────────────────────────────────
