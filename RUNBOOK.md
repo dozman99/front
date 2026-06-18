@@ -149,6 +149,39 @@ curl -X POST "http://localhost:8000/auth/dev-login?username=dev-helpdesk&role=he
 
 ---
 
+## SMS Gateway integration — message_log
+
+The portal displays a **Last 20 Messages** tab inside every phone/email drawer in the Ban List. This tab reads from the `message_log` table, which the portal creates but never writes to. Your SMS gateway is responsible for inserting a row here every time it attempts to send a message.
+
+### Table: `message_log`
+
+| Column | Type | Required | Description |
+|---|---|---|---|
+| `app_email` | `VARCHAR(255)` | Yes | The sending application's email address (e.g. `sms-service@corp.com`) |
+| `phone_number` | `VARCHAR(20)` | Yes | The recipient phone number in E.164 format (e.g. `+12025550101`) |
+| `attempted_at` | `TIMESTAMP` | Yes | UTC timestamp of the send attempt |
+| `status` | `VARCHAR(30)` | Yes | `Delivered`, `Blocked`, or `Throttled` |
+| `block_reason` | `VARCHAR(50)` | No | Why the message was blocked — set when `status = Blocked`. Use one of: `phone_banned`, `temp_banned`, `email_banned`, `opt_out` |
+
+### What your gateway should do
+
+After calling `GET /check/phone/{number}` or `GET /check/email/{address}` and processing the result, insert a row:
+
+```sql
+INSERT INTO message_log (app_email, phone_number, attempted_at, status, block_reason)
+VALUES (
+  'sms-service@corp.com',   -- your application identity
+  '+12025550101',           -- recipient
+  NOW(),                    -- UTC
+  'Blocked',                -- Delivered | Blocked | Throttled
+  'phone_banned'            -- NULL if not blocked
+);
+```
+
+The portal user `sas_relay_user` already has INSERT privileges on this table. No schema changes are needed — the table is created by `alembic upgrade head` during deployment.
+
+---
+
 ## Production checklist (when moving off localhost)
 
 - [ ] Set `ENVIRONMENT=production` in `.env`
