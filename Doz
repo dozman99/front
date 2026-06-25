@@ -1,0 +1,71 @@
+# 5-Minute Version — 7 Slides
+
+---
+
+## Slide 1 — Title
+**"AI Agents: When to Use Them & How to Keep Them Safe"**
+- Our internal LLM, our rules, our teams
+
+---
+
+## Slide 2 — Script vs. Agent (The Only Decision That Matters)
+
+**Use a script when** the steps never change
+**Use an agent when** the next step depends on what you just found
+
+> A script does what you told it.
+> An agent figures out what to do.
+
+---
+
+## Slide 3 — Real Examples on Our Teams
+
+| Team | Script | Agent |
+|---|---|---|
+| DevOps | Rotate creds on schedule | Alert fires → investigate → remediate |
+| Security | Parse logs to SIEM | Triage alert → correlate CVEs → score risk |
+| Platform | Terraform on PR merge | Diagnose degraded service across 4 systems |
+
+---
+
+## Slide 4 — The Risk Without Governance
+
+- Agent calls prod DB with no rate limit
+- Approves its own remediation — no human sees it
+- API key ends up in a log file
+- Token costs spike across all teams with no visibility
+
+**Agents with prod access and no guardrails are not automation — they're unpredictable.**
+
+---
+
+## Slide 5 — Four Governance Layers (Non-Negotiable)
+
+1. **Identity** — one API key per team, rate-limited at the proxy, never in code
+2. **Tool isolation** — DBA agents can't call Linux tools, Linux can't touch AD
+3. **Policy gate** — rules engine (not the LLM) decides auto-execute vs. human approval
+4. **Audit trail** — every agent run produces a retrievable trace, no exceptions
+
+---
+
+## Slide 6 — Who Owns What
+
+**Platform team:** LLM proxy, policy rules, audit pipeline, tool schema registry
+
+**Each team:** their agent code, their tools, their on-call responsibility for what their agent does
+
+> No team deploys a write-capable agent without policy gate sign-off
+
+---
+
+## Slide 7 — The Ask
+
+✅ Approve proxy + policy gate as shared platform infrastructure
+✅ One agent owner per team
+✅ Phase 1: read-only agents only — no autonomous actions until audit logging is live
+
+**Bottom line:** We have the LLM. Governance is what makes it safe to actually use.
+
+---
+
+**7 slides · 5 minutes · one decision to make**
