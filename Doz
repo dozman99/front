@@ -69,3 +69,74 @@
 ---
 
 **7 slides · 5 minutes · one decision to make**
+
+
+
+Slide 2 — What We Already Have
+
+Our Starting Point
+
+	•	Internal LLM endpoint (self-hosted or private cloud)
+	•	API keys distributed per team
+	•	Existing scripts, runbooks, and automation
+	•	The question isn’t whether to use AI — it’s where it adds real value vs. where it adds risk
+
+Slide 3 — Two Tools, Two Jobs
+
+Agent vs. Script — The Core Distinction
+
+|            |Script                   |Agent                    |
+|------------|-------------------------|-------------------------|
+|Control flow|You write it             |LLM decides it           |
+|Inputs      |Known, structured        |Unknown, variable        |
+|Steps       |Fixed                    |Dynamic                  |
+|Failure mode|Predictable              |Harder to audit          |
+|Best for    |Repetitive, deterministic|Investigative, multi-step|
+
+
+
+
+Slide 4 — When to Use a Script
+
+Don’t reach for an agent when:
+
+	•	The task has a fixed, known sequence of steps
+	•	Inputs are always structured (a cron job, a webhook with a defined schema)
+	•	You need 100% reproducibility for compliance or audit
+	•	The task runs in under 5 seconds and never branches
+
+Examples on our teams:
+
+	•	Rotate credentials on a schedule
+
+
+
+Slide 5 — When to Use an Agent
+
+Reach for an agent when:
+
+	•	The path to the answer depends on what you find along the way
+	•	Tools need to be called in an order that can’t be hardcoded
+	•	Context needs to be built up across multiple tool results before a decision
+	•	A human would normally read, reason, then act
+
+Examples on our teams:
+
+Is the task sequence fixed?
+  YES → Script
+
+Does it require reading context before deciding the next step?
+  YES → Does it need to call multiple tools conditionally?
+    YES → Agent (LangGraph preferred)
+    NO  → Simple LLM call (single prompt, no orchestration)
+
+Does it need to take real-world action with consequences?
+  YES → Agent + Policy Gate + Human-in-the-loop interrupt
+
+
+
+
+
+
+
+
