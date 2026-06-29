@@ -1,0 +1,157 @@
+# =============================================================================
+# SAS RELAY — STEP 1: PREFLIGHT CHECKS
+# =============================================================================
+# Validates everything is in place before deployment.
+# Fix all errors before running 2_install.ps1
+#
+# Run as Administrator:
+#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+#   .\1_preflight.ps1
+# =============================================================================
+
+#Requires -RunAsAdministrator
+
+$ErrorActionPreference = "Stop"
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+$root       = $PSScriptRoot
+$backend    = "$root\backend"
+$dist       = "$root\frontend\dist"
+$installers = "$root\installers"
+$envFile    = "$backend\.env"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+function Write-Step    { param([string]$m) Write-Host ""; Write-Host "══ $m" -ForegroundColor Cyan }
+function Write-Success { param([string]$m) Write-Host "  ✓ $m" -ForegroundColor Green }
+function Write-Warn    { param([string]$m) Write-Host "  ⚠ $m" -ForegroundColor Yellow }
+function Write-Fail    { param([string]$m) Write-Host "  ✗ $m" -ForegroundColor Red }
+
+function Read-Env {
+    param([string]$path)
+    $env = @{}
+    Get-Content $path | Where-Object { $_ -match "^\s*([^#][^=]+)=(.*)$" } | ForEach-Object {
+        $key, $value = $_ -split "=", 2
+        $env[$key.Trim()] = $value.Trim().TrimEnd("`r")
+    }
+    return $env
+}
+
+# ── Checks ────────────────────────────────────────────────────────────────────
+Write-Step "Checking .env"
+
+if (-not (Test-Path $envFile)) {
+    Write-Fail "backend\.env not found — copy .env.example to .env and fill in values"
+    exit 1
+}
+Write-Success ".env found"
+
+$env = Read-Env $envFile
+
+$required = @(
+    "DATABASE_URL",
+    "SECRET_KEY",
+    "SAML_SP_ENTITY_ID",
+    "SAML_IDP_METADATA_URL",
+    "SAML_SP_PRIVATE_KEY_FILE",
+    "SAML_SP_CERT_FILE",
+    "ALLOWED_ORIGINS",
+    "ENVIRONMENT",
+    "UVICORN_PORT",
+    "UVICORN_WORKERS",
+    "UVICORN_LOG_LEVEL",
+    "LOG_DIR"
+)
+
+$missing = @()
+foreach ($key in $required) {
+    if (-not $env.ContainsKey($key) -or $env[$key] -match "CHANGE_ME") {
+        $missing += $key
+    }
+}
+
+if ($missing.Count -gt 0) {
+    Write-Fail "Missing or unfilled .env keys: $($missing -join ', ')"
+    exit 1
+}
+Write-Success "All required .env keys present"
+
+# ── Python ────────────────────────────────────────────────────────────────────
+Write-Step "Checking Python"
+
+try {
+    $pythonVersion = python --version 2>&1
+    Write-Success "Python found: $pythonVersion"
+} catch {
+    Write-Fail "Python not found on PATH — install Python 3.11 and ensure it is on PATH"
+    exit 1
+}
+
+# ── Frontend build ────────────────────────────────────────────────────────────
+Write-Step "Checking frontend build"
+
+if (-not (Test-Path "$dist\index.html")) {
+    Write-Fail "frontend\dist\index.html not found — run npm run build on your dev machine and transfer dist\ to the server"
+    exit 1
+}
+Write-Success "index.html found"
+
+if (-not (Test-Path "$dist\web.config")) {
+    Write-Fail "frontend\dist\web.config not found — run the web.config generation script first"
+    exit 1
+}
+Write-Success "web.config found"
+
+# ── SAML certs ────────────────────────────────────────────────────────────────
+Write-Step "Checking SAML certs"
+
+if (-not (Test-Path "$backend\saml\sp_private.pem")) {
+    Write-Fail "sp_private.pem not found in backend\saml\"
+    exit 1
+}
+Write-Success "sp_private.pem found"
+
+if (-not (Test-Path "$backend\saml\sp_cert.pem")) {
+    Write-Fail "sp_cert.pem not found in backend\saml\"
+    exit 1
+}
+Write-Success "sp_cert.pem found"
+
+# ── Installers ────────────────────────────────────────────────────────────────
+Write-Step "Checking installers"
+
+if (-not (Test-Path "$installers\rewrite_amd64_en-US.msi")) {
+    Write-Fail "URL Rewrite installer not found — place rewrite_amd64_en-US.msi in .\installers\"
+    exit 1
+}
+Write-Success "URL Rewrite installer found"
+
+if (-not (Test-Path "$installers\ARRv3_setup_amd64_en-US.exe")) {
+    Write-Fail "ARR installer not found — place ARRv3_setup_amd64_en-US.exe in .\installers\"
+    exit 1
+}
+Write-Success "ARR installer found"
+
+# ── DB connectivity ───────────────────────────────────────────────────────────
+Write-Step "Checking database connectivity"
+
+$dbUrl = $env["DATABASE_URL"]
+# Extract host and port from postgresql://user:pass@host:port/db
+if ($dbUrl -match "@([^:/]+):?(\d+)?/") {
+    $dbHost = $matches[1]
+    $dbPort = if ($matches[2]) { $matches[2] } else { "5432" }
+    $tcpTest = Test-NetConnection -ComputerName $dbHost -Port $dbPort -WarningAction SilentlyContinue
+    if ($tcpTest.TcpTestSucceeded) {
+        Write-Success "Database reachable at $dbHost`:$dbPort"
+    } else {
+        Write-Fail "Cannot reach database at $dbHost`:$dbPort — check network/firewall"
+        exit 1
+    }
+} else {
+    Write-Warn "Could not parse DATABASE_URL to test connectivity — verify manually"
+}
+
+# ── Done ──────────────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Green
+Write-Host "  All preflight checks passed — run .\2_install.ps1"    -ForegroundColor Green
+Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Green
