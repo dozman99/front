@@ -27,4 +27,23 @@ UVICORN_WORKERS=4
 UVICORN_LOG_LEVEL=info
 LOG_DIR=C:\sas-relay\logs
 
-  
+  $envFile = "$PSScriptRoot\backend\.env"
+$template = "$PSScriptRoot\frontend\dist\web.config.template"
+$output = "$PSScriptRoot\frontend\dist\web.config"
+
+# Parse .env into a hashtable
+$env = @{}
+Get-Content $envFile | Where-Object { $_ -match "^\s*([^#][^=]+)=(.*)$" } | ForEach-Object {
+    $key, $value = $_ -split "=", 2
+    $env[$key.Trim()] = $value.Trim().TrimEnd("`r")
+}
+
+# Validate UVICORN_PORT exists
+if (-not $env.ContainsKey("UVICORN_PORT")) {
+    Write-Error "UVICORN_PORT not found in .env"
+    exit 1
+}
+
+(Get-Content $template) -replace "{{PORT}}", $env["UVICORN_PORT"] | Set-Content $output
+Write-Host "web.config generated with port $($env["UVICORN_PORT"])"
+
