@@ -1,0 +1,276 @@
+# =============================================================================
+# SAS RELAY — STEP 2: INSTALL & CONFIGURE
+# =============================================================================
+# Installs IIS, URL Rewrite, ARR, Python venv, runs migrations,
+# configures IIS site, app pool, SSL cert and Task Scheduler.
+#
+# Run AFTER 1_preflight.ps1 passes.
+# Run as Administrator:
+#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+#   .\2_install.ps1
+# =============================================================================
+
+#Requires -RunAsAdministrator
+
+$ErrorActionPreference = "Stop"
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+$root       = $PSScriptRoot
+$backend    = "$root\backend"
+$dist       = "$root\frontend\dist"
+$logs       = "$root\logs"
+$venv       = "$backend\venv"
+$installers = "$root\installers"
+$envFile    = "$backend\.env"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+function Write-Step    { param([string]$m) Write-Host ""; Write-Host "══ $m" -ForegroundColor Cyan }
+function Write-Success { param([string]$m) Write-Host "  ✓ $m" -ForegroundColor Green }
+function Write-Warn    { param([string]$m) Write-Host "  ⚠ $m" -ForegroundColor Yellow }
+function Write-Fail    { param([string]$m) Write-Host "  ✗ $m" -ForegroundColor Red }
+
+function Read-Env {
+    param([string]$path)
+    $env = @{}
+    Get-Content $path | Where-Object { $_ -match "^\s*([^#][^=]+)=(.*)$" } | ForEach-Object {
+        $key, $value = $_ -split "=", 2
+        $env[$key.Trim()] = $value.Trim().TrimEnd("`r")
+    }
+    return $env
+}
+
+$env = Read-Env $envFile
+
+# ── IIS ───────────────────────────────────────────────────────────────────────
+Write-Step "Installing IIS (Windows Server 2022)"
+
+$iis = Get-WindowsFeature -Name Web-Server
+if (-not $iis.Installed) {
+    Write-Warn "IIS not enabled — installing now..."
+
+    $features = @(
+        "Web-Server",
+        "Web-WebServer",
+        "Web-Common-Http",
+        "Web-Static-Content",
+        "Web-Default-Doc",
+        "Web-Http-Errors",
+        "Web-Http-Redirect",
+        "Web-App-Dev",
+        "Web-Net-Ext45",
+        "Web-Asp-Net45",
+        "Web-ISAPI-Ext",
+        "Web-ISAPI-Filter",
+        "Web-Security",
+        "Web-Windows-Auth",
+        "Web-Filtering",
+        "Web-Performance",
+        "Web-Stat-Compression",
+        "Web-Dyn-Compression",
+        "Web-Mgmt-Tools",
+        "Web-Mgmt-Console",
+        "Web-Scripting-Tools",
+        "Web-Mgmt-Service"
+    )
+
+    $result = Install-WindowsFeature -Name $features -IncludeManagementTools
+    if ($result.Success) {
+        Write-Success "IIS installed successfully"
+    } else {
+        Write-Fail "IIS installation failed — install manually via Server Manager"
+        exit 1
+    }
+} else {
+    Write-Warn "IIS already installed — skipping"
+}
+
+# Load WebAdministration module
+try {
+    Import-Module WebAdministration -ErrorAction Stop
+    Write-Success "WebAdministration module loaded"
+} catch {
+    Write-Warn "WebAdministration not found — installing Web-Scripting-Tools..."
+    $result = Install-WindowsFeature Web-Scripting-Tools
+    if ($result.Success) {
+        Import-Module WebAdministration
+        Write-Success "WebAdministration installed and loaded"
+    } else {
+        Write-Fail "Failed to install WebAdministration module"
+        exit 1
+    }
+}
+
+# ── URL Rewrite ───────────────────────────────────────────────────────────────
+Write-Step "Installing URL Rewrite"
+
+$rewriteInstalled = Get-WmiObject -Class Win32_Product |
+    Where-Object { $_.Name -like "*URL Rewrite*" }
+
+if ($rewriteInstalled) {
+    Write-Warn "URL Rewrite already installed — skipping"
+} else {
+    Start-Process -FilePath "msiexec.exe" `
+        -ArgumentList "/i `"$installers\rewrite_amd64_en-US.msi`" /quiet /norestart" `
+        -Wait -NoNewWindow
+    Write-Success "URL Rewrite installed"
+}
+
+# ── ARR ───────────────────────────────────────────────────────────────────────
+Write-Step "Installing ARR"
+
+$arrInstalled = Get-WmiObject -Class Win32_Product |
+    Where-Object { $_.Name -like "*Application Request Routing*" }
+
+if ($arrInstalled) {
+    Write-Warn "ARR already installed — skipping"
+} else {
+    Start-Process -FilePath "$installers\ARRv3_setup_amd64_en-US.exe" `
+        -ArgumentList "/quiet /norestart" `
+        -Wait -NoNewWindow
+    Write-Success "ARR installed"
+}
+
+# Enable ARR proxy mode
+Write-Host "  Enabling ARR proxy mode..."
+$appcmd = "$env:SystemRoot\System32\inetsrv\appcmd.exe"
+& $appcmd set config -section:system.webServer/proxy -enabled:true /commit:apphost | Out-Null
+Write-Success "ARR proxy mode enabled"
+
+# ── Python venv ───────────────────────────────────────────────────────────────
+Write-Step "Setting up Python virtual environment"
+
+# Create directories
+New-Item -ItemType Directory -Force -Path $logs           | Out-Null
+New-Item -ItemType Directory -Force -Path "$backend\saml" | Out-Null
+Write-Success "Directories created"
+
+if (Test-Path "$venv\Scripts\python.exe") {
+    Write-Warn "Virtual environment already exists — skipping creation"
+} else {
+    Set-Location $backend
+    python -m venv venv
+    Write-Success "Virtual environment created"
+}
+
+Write-Host "  Installing Python dependencies..."
+& "$venv\Scripts\pip.exe" install --upgrade pip | Out-Null
+& "$venv\Scripts\pip.exe" install -r "$backend\requirements.txt"
+Write-Success "Python dependencies installed"
+
+# ── Database migrations ───────────────────────────────────────────────────────
+Write-Step "Running database migrations"
+
+Set-Location $backend
+try {
+    & "$venv\Scripts\alembic.exe" upgrade head
+    Write-Success "Database migrations complete"
+} catch {
+    Write-Fail "Database migration failed — check DATABASE_URL in .env"
+    exit 1
+}
+Set-Location $root
+
+# ── Task Scheduler ────────────────────────────────────────────────────────────
+Write-Step "Configuring Task Scheduler"
+
+$existingTask = schtasks /query /tn "SAS Relay Backend" 2>$null
+if ($existingTask) {
+    Write-Warn "Existing task found — removing"
+    schtasks /delete /tn "SAS Relay Backend" /f | Out-Null
+}
+
+schtasks /create `
+    /tn "SAS Relay Backend" `
+    /tr "$backend\start_backend.bat" `
+    /sc onstart `
+    /ru SYSTEM `
+    /rl HIGHEST `
+    /f | Out-Null
+Write-Success "Task created"
+
+schtasks /change /tn "SAS Relay Backend" /ri 1 | Out-Null
+Write-Success "Restart on failure configured (every 1 minute)"
+
+# ── IIS site ──────────────────────────────────────────────────────────────────
+Write-Step "Configuring IIS site"
+
+$domain = $env["SAML_SP_ENTITY_ID"] -replace "https://", "" -replace "http://", ""
+Write-Host "  Domain: $domain"
+
+# Remove existing site and pool if present
+$existingSite = Get-Website -Name "SASRelay" -ErrorAction SilentlyContinue
+if ($existingSite) {
+    Write-Warn "Existing SASRelay site found — removing"
+    Remove-Website -Name "SASRelay"
+}
+
+$existingPool = Get-WebAppPool -Name "SASRelay" -ErrorAction SilentlyContinue
+if ($existingPool) {
+    Write-Warn "Existing SASRelay app pool found — removing"
+    Remove-WebAppPool -Name "SASRelay"
+}
+
+# Create app pool — No Managed Code
+New-WebAppPool -Name "SASRelay" | Out-Null
+Set-ItemProperty "IIS:\AppPools\SASRelay" managedRuntimeVersion ""
+Set-ItemProperty "IIS:\AppPools\SASRelay" managedPipelineMode 0
+Write-Success "App pool created (No Managed Code)"
+
+# Create site on HTTP first — swap to HTTPS after cert
+New-Website -Name "SASRelay" `
+    -PhysicalPath $dist `
+    -ApplicationPool "SASRelay" `
+    -Port 80 `
+    -Force | Out-Null
+Write-Success "IIS website created"
+
+# ── SSL cert ──────────────────────────────────────────────────────────────────
+Write-Step "Configuring SSL certificate"
+
+$cert = Get-ChildItem Cert:\LocalMachine\My |
+    Where-Object { $_.Subject -like "*$domain*" -or $_.DnsNameList -like "*$domain*" } |
+    Sort-Object NotAfter -Descending |
+    Select-Object -First 1
+
+if (-not $cert) {
+    Write-Warn "No SSL cert found for $domain — generating self-signed cert..."
+    $cert = New-SelfSignedCertificate `
+        -DnsName $domain `
+        -CertStoreLocation Cert:\LocalMachine\My `
+        -NotAfter (Get-Date).AddYears(2) `
+        -FriendlyName "SAS Relay ($domain)" `
+        -KeyAlgorithm RSA `
+        -KeyLength 2048 `
+        -HashAlgorithm SHA256
+    Write-Success "Self-signed cert generated — valid 2 years"
+    Write-Warn "Users will see a browser warning — ask IT for a CA-signed cert to replace this"
+} else {
+    Write-Success "Existing cert found — thumbprint: $($cert.Thumbprint.Substring(0,16))..."
+}
+
+# Bind HTTPS and remove HTTP
+New-WebBinding -Name "SASRelay" -Protocol "https" -Port 443 -HostHeader $domain
+$binding = Get-WebBinding -Name "SASRelay" -Protocol "https"
+$binding.AddSslCertificate($cert.Thumbprint, "My")
+Write-Success "SSL cert bound to port 443"
+
+Remove-WebBinding -Name "SASRelay" -Protocol "http" -Port 80
+Write-Success "HTTP binding removed — HTTPS only"
+
+# ── Folder permissions ────────────────────────────────────────────────────────
+Write-Step "Setting folder permissions"
+
+$acl  = Get-Acl $dist
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+    "IIS AppPool\SASRelay", "ReadAndExecute",
+    "ContainerInherit,ObjectInherit", "None", "Allow"
+)
+$acl.SetAccessRule($rule)
+Set-Acl $dist $acl
+Write-Success "IIS AppPool\SASRelay granted ReadAndExecute on dist\"
+
+# ── Done ──────────────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Green
+Write-Host "  Installation complete — run .\3_start.ps1"            -ForegroundColor Green
+Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Green
