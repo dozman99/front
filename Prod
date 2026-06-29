@@ -1,0 +1,333 @@
+================================================================================
+SAS RELAY — PRODUCTION DEPLOYMENT REFERENCE
+================================================================================
+Generated for Windows Server + IIS deployment
+All placeholders in <ANGLE_BRACKETS> must be replaced with real values
+================================================================================
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 1 — DEV MACHINE PREP (do this before touching the server)
+════════════════════════════════════════════════════════════════════════════════
+
+── 1.1 Generate SAML Certificates ──────────────────────────────────────────────
+
+Run in Git Bash or WSL on your dev machine:
+
+    mkdir -p backend/saml
+
+    openssl req -x509 -newkey rsa:2048 \
+      -keyout backend/saml/sp_private.pem \
+      -out backend/saml/sp_cert.pem \
+      -days 365 -nodes \
+      -subj "/CN=sas-relay.<YOURCOMPANY>.internal"
+
+IMPORTANT:
+  - sp_cert.pem   → send to the IDP/auth team (public, safe to share)
+  - sp_private.pem → never share, never commit to git
+  - ACS URL to give the auth team: https://<YOUR_DOMAIN>/auth/saml/callback
+
+
+── 1.2 Generate a SECRET_KEY ────────────────────────────────────────────────────
+
+Run in Python on your dev machine:
+
+    python -c "import secrets; print(secrets.token_hex(32))"
+
+Copy the output — you will need it in Section 2.
+
+
+── 1.3 Build the Frontend ───────────────────────────────────────────────────────
+
+    cd frontend
+    npm install
+    npm run build
+
+Output will be in: frontend/dist/
+This is what IIS will serve as the static site.
+
+
+── 1.4 Create start_backend.bat ────────────────────────────────────────────────
+
+Create this file at the root of your project:
+
+    @echo off
+    cd C:\sas-relay\backend
+    C:\Python311\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port 8000 --workers 4
+
+Save as: start_backend.bat
+
+
+── 1.5 Create web.config ────────────────────────────────────────────────────────
+
+Create this file — it goes inside frontend/dist/ before you copy to the server:
+
+    <?xml version="1.0" encoding="UTF-8"?>
+    <configuration>
+      <system.webServer>
+
+        <!-- ARR reverse proxy: forward /api/* to FastAPI -->
+        <rewrite>
+          <rules>
+            <rule name="API Proxy" stopProcessing="true">
+              <match url="^api/(.*)" />
+              <action type="Rewrite" url="http://127.0.0.1:8000/{R:1}" />
+            </rule>
+
+            <!-- SPA fallback: serve index.html for all frontend routes -->
+            <rule name="SPA Fallback" stopProcessing="true">
+              <match url=".*" />
+              <conditions logicalGrouping="MatchAll">
+                <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />
+                <add input="{REQUEST_FILENAME}" matchType="IsDirectory" negate="true" />
+              </conditions>
+              <action type="Rewrite" url="/index.html" />
+            </rule>
+          </rules>
+        </rewrite>
+
+        <staticContent>
+          <mimeMap fileExtension=".js" mimeType="application/javascript" />
+          <mimeMap fileExtension=".jsx" mimeType="application/javascript" />
+          <mimeMap fileExtension=".json" mimeType="application/json" />
+          <mimeMap fileExtension=".woff" mimeType="font/woff" />
+          <mimeMap fileExtension=".woff2" mimeType="font/woff2" />
+        </staticContent>
+
+      </system.webServer>
+    </configuration>
+
+Save as: frontend/dist/web.config
+
+
+── 1.6 Files to Transfer to Server ─────────────────────────────────────────────
+
+Zip and transfer ALL of the following:
+
+    frontend/dist/              (built frontend — includes web.config)
+    backend/                    (all Python code)
+    backend/.env                (production env — fill in Section 2 first)
+    backend/saml/sp_private.pem (SAML private key)
+    backend/saml/sp_cert.pem    (SAML public cert)
+    start_backend.bat
+    URL Rewrite installer       (rewrite_amd64_en-US.msi)
+    ARR 3.0 installer           (ARRv3_setup_amd64_en-US.exe)
+    Python 3.11 installer       (python-3.11.x-amd64.exe) if not on server
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 2 — BACKEND .env (production values)
+════════════════════════════════════════════════════════════════════════════════
+
+File location on server: C:\sas-relay\backend\.env
+
+Fill in every value before transferring:
+
+    # Database
+    DATABASE_URL=postgresql://sas_relay_user:<DB_PASSWORD>@<DB_HOST>:5432/sas_relay
+
+    # Session signing — paste output from Section 1.2
+    SECRET_KEY=<64_CHAR_HEX_STRING>
+
+    # SAML
+    SAML_SP_ENTITY_ID=https://<YOUR_DOMAIN>
+    SAML_IDP_METADATA_URL=https://<IDP_HOST>/metadata
+    SAML_SP_PRIVATE_KEY_FILE=C:\sas-relay\backend\saml\sp_private.pem
+    SAML_SP_CERT_FILE=C:\sas-relay\backend\saml\sp_cert.pem
+
+    # CORS — must match your production domain exactly
+    ALLOWED_ORIGINS=https://<YOUR_DOMAIN>
+
+    # Session
+    SESSION_EXPIRE_HOURS=8
+
+    # Rate limiting
+    RATE_LIMIT_CHECK=100/hour
+
+    # Environment — enables production mode, disables /docs
+    ENVIRONMENT=production
+
+    # Active Directory LDAP
+    LDAP_SERVER=ldap://<DC_HOST>.<YOURCOMPANY>.internal
+    LDAP_BIND_DN=CN=<SERVICE_ACCOUNT>,OU=Service Accounts,DC=<CORP>,DC=com
+    LDAP_BIND_PASSWORD=<SERVICE_ACCOUNT_PASSWORD>
+    LDAP_BASE_DN=DC=<CORP>,DC=com
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 3 — FRONTEND .env.production
+════════════════════════════════════════════════════════════════════════════════
+
+File location: frontend/.env.production
+Edit BEFORE running npm run build in Section 1.3
+
+    VITE_API_BASE_URL=https://<YOUR_DOMAIN>/api
+    VITE_APP_NAME=SAS Relay
+    VITE_ENVIRONMENT=production
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 4 — SERVER INSTALLATION (run on the server as Administrator)
+════════════════════════════════════════════════════════════════════════════════
+
+── 4.1 Install in this exact order ──────────────────────────────────────────────
+
+    1. python-3.11.x-amd64.exe        (if Python not already installed)
+       - Check "Add Python to PATH" during install
+
+    2. rewrite_amd64_en-US.msi        (URL Rewrite)
+
+    3. ARRv3_setup_amd64_en-US.exe    (Application Request Routing)
+
+
+── 4.2 Enable ARR Proxy Mode ────────────────────────────────────────────────────
+
+In IIS Manager:
+    Server node (top level, not a site)
+    → Application Request Routing Cache
+    → Server Proxy Settings (right pane)
+    → Check "Enable proxy"
+    → Apply
+
+
+── 4.3 Copy Files to Server ─────────────────────────────────────────────────────
+
+    C:\sas-relay\
+        backend\          (Python app)
+        backend\.env      (production env)
+        backend\saml\     (SAML certs)
+        dist\             (frontend build — rename from frontend/dist)
+        start_backend.bat
+
+
+── 4.4 Install Python Dependencies ─────────────────────────────────────────────
+
+Open Command Prompt as Administrator:
+
+    cd C:\sas-relay\backend
+    pip install -r requirements.txt
+
+
+── 4.5 Run Database Migrations ──────────────────────────────────────────────────
+
+    cd C:\sas-relay\backend
+    alembic upgrade head
+
+Run this once. Confirms DB connection is working.
+If it fails, check DATABASE_URL in .env first.
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 5 — START BACKEND VIA TASK SCHEDULER
+════════════════════════════════════════════════════════════════════════════════
+
+Run in Command Prompt as Administrator:
+
+── 5.1 Create the task ──────────────────────────────────────────────────────────
+
+    schtasks /create /tn "SAS Relay Backend" /tr "C:\sas-relay\start_backend.bat" /sc onstart /ru SYSTEM /rl HIGHEST /f
+
+── 5.2 Start it now (no reboot needed) ──────────────────────────────────────────
+
+    schtasks /run /tn "SAS Relay Backend"
+
+── 5.3 Verify port 8000 is listening ────────────────────────────────────────────
+
+    netstat -ano | findstr :8000
+
+Expected output:
+    TCP    127.0.0.1:8000    0.0.0.0:0    LISTENING    <PID>
+
+── 5.4 Verify API is responding ─────────────────────────────────────────────────
+
+    curl http://127.0.0.1:8000/auth/me
+
+Expected: 401 Unauthorized (means FastAPI is running, auth is working)
+
+── 5.5 Stop / Restart commands ──────────────────────────────────────────────────
+
+    schtasks /end /tn "SAS Relay Backend"       (stop)
+    schtasks /run /tn "SAS Relay Backend"       (start)
+    schtasks /delete /tn "SAS Relay Backend" /f (remove task entirely)
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 6 — IIS SITE CONFIGURATION
+════════════════════════════════════════════════════════════════════════════════
+
+── 6.1 Create the IIS Site ──────────────────────────────────────────────────────
+
+In IIS Manager:
+    Sites → Add Website
+    Site name:    SAS Relay
+    Physical path: C:\sas-relay\dist
+    Binding:
+      Type:       https
+      IP:         All Unassigned
+      Port:       443
+      Host name:  <YOUR_DOMAIN>
+      SSL cert:   <select your internal CA cert>
+
+── 6.2 Set App Pool ─────────────────────────────────────────────────────────────
+
+    Application Pools → SAS Relay pool
+    .NET CLR Version: No Managed Code
+    Managed Pipeline: Integrated
+
+── 6.3 Verify web.config is in dist\ ────────────────────────────────────────────
+
+Check that C:\sas-relay\dist\web.config exists (created in Section 1.5)
+IIS picks it up automatically — no restart needed.
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 7 — VERIFICATION CHECKLIST
+════════════════════════════════════════════════════════════════════════════════
+
+Run through these in order:
+
+[ ] netstat -ano | findstr :8000              backend is listening
+[ ] curl http://127.0.0.1:8000/auth/me        FastAPI returns 401 (not 404/500)
+[ ] alembic upgrade head                      ran without errors
+[ ] https://<YOUR_DOMAIN>                     IIS serves the login page
+[ ] https://<YOUR_DOMAIN>/api/auth/me         ARR proxy is routing to FastAPI
+[ ] Click "Sign in with SSO"                  redirects to IDP login page
+[ ] Login with AD credentials                 redirects back to /dashboard
+[ ] Helpdesk user login                       correct role, correct nav items
+[ ] Admin user login                          correct role, all features visible
+
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 8 — THINGS TO HAND OFF TO OTHER TEAMS
+════════════════════════════════════════════════════════════════════════════════
+
+── Auth / IDP Team ──────────────────────────────────────────────────────────────
+
+Give them:
+  - ACS URL:       https://<YOUR_DOMAIN>/auth/saml/callback
+  - Entity ID:     https://<YOUR_DOMAIN>
+  - sp_cert.pem    (public cert only, NOT the private key)
+
+They need to:
+  - Register your SP in the IDP
+  - Configure attributes to release: displayName, memberOf
+  - Confirm IDP metadata URL matches SAML_IDP_METADATA_URL in .env
+
+── AD / LDAP Team ───────────────────────────────────────────────────────────────
+
+Confirm:
+  - Service account <SERVICE_ACCOUNT> exists with read access to group objects
+  - AD groups for admin and helpdesk roles exist and are mapped in the app
+  - LDAP_BIND_DN and LDAP_BASE_DN match your AD structure
+
+── DBA Team ─────────────────────────────────────────────────────────────────────
+
+Confirm:
+  - PostgreSQL user sas_relay_user exists
+  - User has CREATE, SELECT, INSERT, UPDATE, DELETE on sas_relay database
+  - Server firewall allows connection from the app server on port 5432
+
+
+════════════════════════════════════════════════════════════════════════════════
+END OF DOCUMENT
+================================================================================
