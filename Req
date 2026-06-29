@@ -1,0 +1,30 @@
+@echo off
+cd /d "%~dp0"
+
+:: Load .env file
+for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
+    if not "%%A"=="" if not "%%A:~0,1%"=="#" (
+        set "%%A=%%B"
+    )
+)
+
+:: Activate virtual environment
+call venv\Scripts\activate.bat
+
+:: Start uvicorn
+venv\Scripts\uvicorn.exe app.main:app ^
+  --host 127.0.0.1 ^
+  --port %UVICORN_PORT% ^
+  --workers %UVICORN_WORKERS% ^
+  --log-level %UVICORN_LOG_LEVEL% ^
+  --access-log ^
+  >> %LOG_DIR%\uvicorn.log 2>&1
+
+
+
+UVICORN_PORT=8000
+UVICORN_WORKERS=4
+UVICORN_LOG_LEVEL=info
+LOG_DIR=C:\sas-relay\logs
+
+  
