@@ -1,0 +1,186 @@
+# =============================================================================
+# SAS RELAY — STEP 3: START & VERIFY
+# =============================================================================
+# Starts the backend via Task Scheduler, starts the IIS site,
+# and verifies everything is running correctly.
+#
+# Run AFTER 2_install.ps1 completes.
+# Run as Administrator:
+#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+#   .\3_start.ps1
+# =============================================================================
+
+#Requires -RunAsAdministrator
+
+$ErrorActionPreference = "Stop"
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+$root    = $PSScriptRoot
+$backend = "$root\backend"
+$logs    = "$root\logs"
+$envFile = "$backend\.env"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+function Write-Step    { param([string]$m) Write-Host ""; Write-Host "══ $m" -ForegroundColor Cyan }
+function Write-Success { param([string]$m) Write-Host "  ✓ $m" -ForegroundColor Green }
+function Write-Warn    { param([string]$m) Write-Host "  ⚠ $m" -ForegroundColor Yellow }
+function Write-Fail    { param([string]$m) Write-Host "  ✗ $m" -ForegroundColor Red }
+
+function Read-Env {
+    param([string]$path)
+    $env = @{}
+    Get-Content $path | Where-Object { $_ -match "^\s*([^#][^=]+)=(.*)$" } | ForEach-Object {
+        $key, $value = $_ -split "=", 2
+        $env[$key.Trim()] = $value.Trim().TrimEnd("`r")
+    }
+    return $env
+}
+
+$env    = Read-Env $envFile
+$port   = $env["UVICORN_PORT"]
+$domain = $env["SAML_SP_ENTITY_ID"] -replace "https://", "" -replace "http://", ""
+
+Import-Module WebAdministration
+
+# ── Start backend ─────────────────────────────────────────────────────────────
+Write-Step "Starting backend"
+
+$taskExists = schtasks /query /tn "SAS Relay Backend" 2>$null
+if (-not $taskExists) {
+    Write-Fail "Task 'SAS Relay Backend' not found — run 2_install.ps1 first"
+    exit 1
+}
+
+Write-Host "  Starting Task Scheduler task..."
+schtasks /run /tn "SAS Relay Backend" | Out-Null
+
+Write-Host "  Waiting for uvicorn to boot..."
+$maxWait  = 30
+$interval = 2
+$elapsed  = 0
+$started  = $false
+
+while ($elapsed -lt $maxWait) {
+    Start-Sleep -Seconds $interval
+    $elapsed += $interval
+    $listening = netstat -ano | Select-String ":$port\s"
+    if ($listening) {
+        $started = $true
+        break
+    }
+    Write-Host "  Waiting... ($elapsed`s)"
+}
+
+if (-not $started) {
+    Write-Fail "Backend did not start within $maxWait seconds"
+    Write-Fail "Check logs at: $logs\uvicorn.log"
+    exit 1
+}
+Write-Success "Backend listening on port $port"
+
+# ── Verify API ────────────────────────────────────────────────────────────────
+Write-Step "Verifying API"
+
+try {
+    $response = Invoke-WebRequest `
+        -Uri "http://127.0.0.1:$port/" `
+        -UseBasicParsing `
+        -TimeoutSec 5
+    if ($response.StatusCode -eq 200) {
+        Write-Success "Health endpoint returned 200 OK"
+    }
+} catch {
+    Write-Warn "Health check inconclusive — backend may still be starting"
+}
+
+try {
+    $response = Invoke-WebRequest `
+        -Uri "http://127.0.0.1:$port/auth/me" `
+        -UseBasicParsing `
+        -TimeoutSec 5
+} catch {
+    if ($_.Exception.Response.StatusCode -eq 401) {
+        Write-Success "/auth/me returned 401 — auth is working correctly"
+    } else {
+        Write-Warn "/auth/me returned unexpected status — check logs"
+    }
+}
+
+# ── Start IIS site ────────────────────────────────────────────────────────────
+Write-Step "Starting IIS site"
+
+$site = Get-Website -Name "SASRelay" -ErrorAction SilentlyContinue
+if (-not $site) {
+    Write-Fail "SASRelay site not found — run 2_install.ps1 first"
+    exit 1
+}
+
+if ($site.State -ne "Started") {
+    Start-Website -Name "SASRelay"
+    Start-Sleep -Seconds 2
+}
+
+$site = Get-Website -Name "SASRelay"
+if ($site.State -eq "Started") {
+    Write-Success "IIS site is running"
+} else {
+    Write-Fail "IIS site failed to start — state: $($site.State)"
+    exit 1
+}
+
+# ── App pool ──────────────────────────────────────────────────────────────────
+$pool = Get-WebAppPool -Name "SASRelay"
+if ($pool.State -ne "Started") {
+    Start-WebAppPool -Name "SASRelay"
+    Write-Success "App pool started"
+} else {
+    Write-Success "App pool is running"
+}
+
+# ── Log files ─────────────────────────────────────────────────────────────────
+Write-Step "Checking log files"
+
+if (Test-Path "$logs\uvicorn.log") {
+    Write-Success "uvicorn.log exists"
+    $lastLines = Get-Content "$logs\uvicorn.log" -Tail 3
+    Write-Host "  Last log entries:"
+    $lastLines | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }
+} else {
+    Write-Warn "uvicorn.log not yet created — will appear after first request"
+}
+
+if (Test-Path "$logs\app.log") {
+    Write-Success "app.log exists"
+} else {
+    Write-Warn "app.log not yet created — will appear after first request"
+}
+
+# ── Final summary ─────────────────────────────────────────────────────────────
+$allGood = $true
+
+$listening = netstat -ano | Select-String ":$port\s"
+if (-not $listening) { $allGood = $false }
+
+$site = Get-Website -Name "SASRelay"
+if ($site.State -ne "Started") { $allGood = $false }
+
+Write-Host ""
+if ($allGood) {
+    Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Green
+    Write-Host "  Deployment successful"                                  -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Verify in browser:"                                     -ForegroundColor Green
+    Write-Host "    https://$domain"                    -ForegroundColor Green
+    Write-Host "    https://$domain/api/auth/me  (expect 401)"           -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Logs:"                                                  -ForegroundColor Green
+    Write-Host "    $logs\uvicorn.log"                                    -ForegroundColor Green
+    Write-Host "    $logs\app.log"                                        -ForegroundColor Green
+    Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Green
+} else {
+    Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Red
+    Write-Host "  Deployment completed with errors — review output above" -ForegroundColor Red
+    Write-Host "  Logs: $logs"                                            -ForegroundColor Red
+    Write-Host "════════════════════════════════════════════════════════" -ForegroundColor Red
+    exit 1
+}
